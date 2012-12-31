@@ -1,69 +1,33 @@
 package com.netiq.websockify;
 
-import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.setContentLength;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static org.jboss.netty.handler.codec.http.HttpMethod.GET;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.FORBIDDEN;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.METHOD_NOT_ALLOWED;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.NOT_FOUND;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
-import static org.jboss.netty.handler.codec.http.HttpResponseStatus.TEMPORARY_REDIRECT;
-import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import org.jboss.netty.bootstrap.ClientBootstrap;
+import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
+import org.jboss.netty.channel.*;
+import org.jboss.netty.channel.socket.ClientSocketChannelFactory;
+import org.jboss.netty.handler.codec.base64.Base64;
+import org.jboss.netty.handler.codec.http.*;
+import org.jboss.netty.handler.codec.http.websocketx.*;
+import org.jboss.netty.handler.ssl.SslHandler;
+import org.jboss.netty.handler.stream.ChunkedFile;
+import org.jboss.netty.util.CharsetUtil;
 
+import javax.activation.MimetypesFileTypeMap;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
-import java.net.InetSocketAddress;
-import java.net.MalformedURLException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.net.URLDecoder;
+import java.net.*;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.TimeZone;
+import java.util.*;
 import java.util.logging.Logger;
 
-import javax.activation.MimetypesFileTypeMap;
-
-import org.jboss.netty.bootstrap.ClientBootstrap;
-import org.jboss.netty.buffer.ChannelBuffer;
-import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.Channel;
-import org.jboss.netty.channel.ChannelEvent;
-import org.jboss.netty.channel.ChannelFuture;
-import org.jboss.netty.channel.ChannelFutureListener;
-import org.jboss.netty.channel.ChannelFutureProgressListener;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelStateEvent;
-import org.jboss.netty.channel.DefaultFileRegion;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.FileRegion;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelUpstreamHandler;
-import org.jboss.netty.channel.socket.ClientSocketChannelFactory;
-import org.jboss.netty.handler.codec.base64.Base64;
-import org.jboss.netty.handler.codec.http.DefaultHttpResponse;
-import org.jboss.netty.handler.codec.http.HttpHeaders;
-import org.jboss.netty.handler.codec.http.HttpRequest;
-import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.jboss.netty.handler.codec.http.HttpResponseStatus;
-import org.jboss.netty.handler.codec.http.websocketx.CloseWebSocketFrame;
-import org.jboss.netty.handler.codec.http.websocketx.PingWebSocketFrame;
-import org.jboss.netty.handler.codec.http.websocketx.PongWebSocketFrame;
-import org.jboss.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-import org.jboss.netty.handler.codec.http.websocketx.WebSocketFrame;
-import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
-import org.jboss.netty.handler.codec.http.websocketx.WebSocketServerHandshakerFactory;
-import org.jboss.netty.handler.ssl.SslHandler;
-import org.jboss.netty.handler.stream.ChunkedFile;
-import org.jboss.netty.util.CharsetUtil;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.setContentLength;
+import static org.jboss.netty.handler.codec.http.HttpMethod.GET;
+import static org.jboss.netty.handler.codec.http.HttpResponseStatus.*;
+import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
@@ -74,7 +38,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
     public static final String REDIRECT_PATH = "/redirect";
     
     private final ClientSocketChannelFactory cf;
-    private final IProxyTargetResolver resolver;
+    private IProxyTargetResolver resolver;
 
     private WebSocketServerHandshaker handshaker = null;
     private String webDirectory;
@@ -93,7 +57,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
         this.webDirectory = webDirectory;
     }
 
-    private void ensureTargetConnection(ChannelEvent e, boolean websocket, final Object sendMsg)
+    private void ensureTargetConnection(ChannelEvent e, boolean websocket, final Object sendMsg, IProxyTargetResolver oneShortResolver)
             throws Exception {
     	if(outboundChannel == null) {
 	        // Suspend incoming traffic until connected to the remote host.
@@ -102,7 +66,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 			Logger.getLogger(WebsockifyProxyHandler.class.getName()).info("Inbound proxy connection from " + inboundChannel.getRemoteAddress() + ".");
 	        
 	        // resolve the target
-	        final InetSocketAddress target = resolver.resolveTarget(inboundChannel);
+	        final InetSocketAddress target = oneShortResolver.resolveTarget(inboundChannel);
 	        if ( target == null )
 	        {
 				Logger.getLogger(WebsockifyProxyHandler.class.getName()).severe("Connection from " + inboundChannel.getRemoteAddress() + " failed to resolve target.");
@@ -186,7 +150,13 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 	        	}
 	            this.handshaker.handshake(ctx.getChannel(), req);
 	        }
-	    	ensureTargetConnection (e, true, null);
+
+            Map<String, String> queryMap = getQueryMap(req.getUri().split("\\?")[1]);
+            String rhost = queryMap.get("host");
+            int rport = Integer.parseInt(queryMap.get("port"));
+            IProxyTargetResolver oneShortResolver = new StaticTargetResolver(rhost, rport);
+
+	    	ensureTargetConnection (e, true, null, oneShortResolver);
         }
         else {
             HttpRequest request = (HttpRequest) e.getMessage();
@@ -232,7 +202,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
     private void handleVncDirect(ChannelHandlerContext ctx, ChannelBuffer buffer, final MessageEvent e) throws Exception {
     	// ensure the target connection is open and send the data
-    	ensureTargetConnection(e, false, buffer);
+    	ensureTargetConnection(e, false, buffer, null);
     }
     
     private void handleWebRequest(ChannelHandlerContext ctx, final MessageEvent e) throws Exception {
