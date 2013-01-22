@@ -124,7 +124,7 @@ public class Websockify {
 
         WebsockifyServer wss = new WebsockifyServer ( );
         wss.connect ( sourcePort, targetHost, targetPort, sslSetting, keystore, keystorePassword, keystoreKeyPassword, webDirectory );
-        
+
     }
 
 }

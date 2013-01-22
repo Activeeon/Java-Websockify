@@ -31,6 +31,8 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
+    public static  String path = "";
+
     private static final String URL_PARAMETER = "url";
 	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
     public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
@@ -131,6 +133,8 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
         }
 
         String upgradeHeader = req.getHeader("Upgrade");
+        System.out.println(req.getUri());
+        path = req.getUri();
         if(upgradeHeader != null && upgradeHeader.toUpperCase().equals("WEBSOCKET")){
 			Logger.getLogger(WebsockifyProxyHandler.class.getName()).fine("Websocket request from " + e.getRemoteAddress() + ".");
 	        // Handshake
