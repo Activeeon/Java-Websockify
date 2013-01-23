@@ -23,6 +23,7 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
+import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.HOST;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.setContentLength;
 import static org.jboss.netty.handler.codec.http.HttpMethod.GET;
@@ -31,8 +32,6 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
-    public static  String path = "";
-
     private static final String URL_PARAMETER = "url";
 	public static final String HTTP_DATE_FORMAT = "EEE, dd MMM yyyy HH:mm:ss zzz";
     public static final String HTTP_DATE_GMT_TIMEZONE = "GMT";
@@ -40,7 +39,6 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
     public static final String REDIRECT_PATH = "/redirect";
     
     private final ClientSocketChannelFactory cf;
-    private IProxyTargetResolver resolver;
 
     private WebSocketServerHandshaker handshaker = null;
     private String webDirectory;
@@ -54,7 +52,6 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
     public WebsockifyProxyHandler(ClientSocketChannelFactory cf, IProxyTargetResolver resolver, String webDirectory) {
         this.cf = cf;
-        this.resolver = resolver;
         this.outboundChannel = null;
         this.webDirectory = webDirectory;
     }
@@ -133,8 +130,6 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
         }
 
         String upgradeHeader = req.getHeader("Upgrade");
-        System.out.println(req.getUri());
-        path = req.getUri();
         if(upgradeHeader != null && upgradeHeader.toUpperCase().equals("WEBSOCKET")){
 			Logger.getLogger(WebsockifyProxyHandler.class.getName()).fine("Websocket request from " + e.getRemoteAddress() + ".");
 	        // Handshake
@@ -165,8 +160,9 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
         else {
             HttpRequest request = (HttpRequest) e.getMessage();
             String redirectUrl = isRedirect(request.getUri());
-		    if ( redirectUrl != null) {
-				Logger.getLogger(WebsockifyProxyHandler.class.getName()).fine("Redirecting to " + redirectUrl + ".");
+            if ( redirectUrl != null) {
+                redirectUrl = addWebsocketParametersToRedirect(ctx, req, isRedirect(request.getUri()));
+                Logger.getLogger(WebsockifyProxyHandler.class.getName()).fine("Redirecting to " + redirectUrl + ".");
 		        HttpResponse response = new DefaultHttpResponse(HTTP_1_1, TEMPORARY_REDIRECT);
 		        response.setHeader(HttpHeaders.Names.LOCATION, redirectUrl);
 	            sendHttpResponse(ctx, req, response);
@@ -176,6 +172,20 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 		    	handleWebRequest ( ctx, e );
 		    }
         }
+    }
+
+    private String addWebsocketParametersToRedirect(ChannelHandlerContext ctx, HttpRequest req, String redirectUrl) {
+        String[] hostAndPort = req.getHeader(HOST).split(":");
+        redirectUrl += "&host=" + hostAndPort[0];
+        redirectUrl += "&port=" + hostAndPort[1];
+        if (isSslEnabled(ctx.getChannel())) {
+            redirectUrl += "&encrypt=True";
+        }
+        return redirectUrl;
+    }
+
+    private boolean isSslEnabled(Channel channel) {
+        return channel.getPipeline().get(SslHandler.class) != null;
     }
 
     private void handleWebSocketFrame(ChannelHandlerContext ctx, WebSocketFrame frame, final MessageEvent e) {
@@ -271,7 +281,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
         // Write the content.
         ChannelFuture writeFuture;
-        if (ch.getPipeline().get(SslHandler.class) != null) {
+        if (isSslEnabled(ch)) {
             // Cannot use zero-copy with HTTPS.
             writeFuture = ch.write(new ChunkedFile(raf, 0, fileLength, 8192));
         } else {

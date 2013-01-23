@@ -42,7 +42,7 @@ import com.netiq.websockify.WebsockifyServer.SSLSetting;
  * SSL or GZIP.
  */
 public class PortUnificationHandler extends FrameDecoder {
-    protected static long connectionToFirstMessageTimeout = 5000;
+    protected static long connectionToFirstMessageTimeout = 10000;
 
 	private final ClientSocketChannelFactory cf;
 	private final IProxyTargetResolver resolver;
