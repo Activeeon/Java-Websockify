@@ -161,7 +161,6 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
             HttpRequest request = (HttpRequest) e.getMessage();
             String redirectUrl = isRedirect(request.getUri());
             if ( redirectUrl != null) {
-                redirectUrl = addWebsocketParametersToRedirect(ctx, req, isRedirect(request.getUri()));
                 Logger.getLogger(WebsockifyProxyHandler.class.getName()).fine("Redirecting to " + redirectUrl + ".");
 		        HttpResponse response = new DefaultHttpResponse(HTTP_1_1, TEMPORARY_REDIRECT);
 		        response.setHeader(HttpHeaders.Names.LOCATION, redirectUrl);
@@ -172,16 +171,6 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 		    	handleWebRequest ( ctx, e );
 		    }
         }
-    }
-
-    private String addWebsocketParametersToRedirect(ChannelHandlerContext ctx, HttpRequest req, String redirectUrl) {
-        String[] hostAndPort = req.getHeader(HOST).split(":");
-        redirectUrl += "&host=" + hostAndPort[0];
-        redirectUrl += "&port=" + hostAndPort[1];
-        if (isSslEnabled(ctx.getChannel())) {
-            redirectUrl += "&encrypt=True";
-        }
-        return redirectUrl;
     }
 
     private boolean isSslEnabled(Channel channel) {
