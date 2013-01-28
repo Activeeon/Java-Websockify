@@ -70,8 +70,6 @@ public class WebsockifyServer {
 
         // Start up the server.
         serverChannel = sb.bind(new InetSocketAddress(localPort));
-        sb.bind(new InetSocketAddress(5901));
-		
 	}
 	
 	public void close ( )
