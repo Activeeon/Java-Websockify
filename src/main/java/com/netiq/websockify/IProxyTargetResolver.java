@@ -2,10 +2,10 @@ package com.netiq.websockify;
 
 import java.net.InetSocketAddress;
 
-import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.MessageEvent;
 
 public interface IProxyTargetResolver {
 	
-	public InetSocketAddress resolveTarget ( Channel channel );
+	public InetSocketAddress resolveTarget ( MessageEvent messageEvent );
 
 }

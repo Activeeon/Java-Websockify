@@ -43,7 +43,7 @@ public class DirectProxyHandler extends SimpleChannelUpstreamHandler {
 			Logger.getLogger(WebsockifyProxyHandler.class.getName()).info("Inbound proxy connection from " + inboundChannel.getRemoteAddress() + ".");
 	        
 	        // resolve the target
-	        final InetSocketAddress target = resolver.resolveTarget(inboundChannel);
+	        final InetSocketAddress target = resolver.resolveTarget(null);
 	        if ( target == null )
 	        {
 				Logger.getLogger(WebsockifyProxyHandler.class.getName()).severe("Connection from " + inboundChannel.getRemoteAddress() + " failed to resolve target.");

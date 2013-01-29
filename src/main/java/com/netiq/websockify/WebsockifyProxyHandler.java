@@ -23,7 +23,6 @@ import java.util.*;
 import java.util.logging.Logger;
 
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_TYPE;
-import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.HOST;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.isKeepAlive;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.setContentLength;
 import static org.jboss.netty.handler.codec.http.HttpMethod.GET;
@@ -49,14 +48,16 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
     final Object trafficLock = new Object();
 
     private volatile Channel outboundChannel;
+    private final IProxyTargetResolver resolver;
 
     public WebsockifyProxyHandler(ClientSocketChannelFactory cf, IProxyTargetResolver resolver, String webDirectory) {
         this.cf = cf;
         this.outboundChannel = null;
         this.webDirectory = webDirectory;
+        this.resolver = resolver;
     }
 
-    private void ensureTargetConnection(ChannelEvent e, boolean websocket, final Object sendMsg, IProxyTargetResolver oneShortResolver)
+    private void ensureTargetConnection(MessageEvent e, boolean websocket, final Object sendMsg)
             throws Exception {
     	if(outboundChannel == null) {
 	        // Suspend incoming traffic until connected to the remote host.
@@ -65,7 +66,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 			Logger.getLogger(WebsockifyProxyHandler.class.getName()).info("Inbound proxy connection from " + inboundChannel.getRemoteAddress() + ".");
 	        
 	        // resolve the target
-	        final InetSocketAddress target = oneShortResolver.resolveTarget(inboundChannel);
+	        final InetSocketAddress target = resolver.resolveTarget(e);
 	        if ( target == null )
 	        {
 				Logger.getLogger(WebsockifyProxyHandler.class.getName()).severe("Connection from " + inboundChannel.getRemoteAddress() + " failed to resolve target.");
@@ -150,12 +151,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 	            this.handshaker.handshake(ctx.getChannel(), req);
 	        }
 
-            Map<String, String> queryMap = getQueryMap(req.getUri().split("\\?")[1]);
-            String rhost = queryMap.get("host");
-            int rport = Integer.parseInt(queryMap.get("port"));
-            IProxyTargetResolver oneShortResolver = new StaticTargetResolver(rhost, rport);
-
-	    	ensureTargetConnection (e, true, null, oneShortResolver);
+	    	ensureTargetConnection (e, true, null);
         }
         else {
             HttpRequest request = (HttpRequest) e.getMessage();
@@ -205,7 +201,7 @@ public class WebsockifyProxyHandler extends SimpleChannelUpstreamHandler {
 
     private void handleVncDirect(ChannelHandlerContext ctx, ChannelBuffer buffer, final MessageEvent e) throws Exception {
     	// ensure the target connection is open and send the data
-    	ensureTargetConnection(e, false, buffer, null);
+    	ensureTargetConnection(e, false, buffer);
     }
     
     private void handleWebRequest(ChannelHandlerContext ctx, final MessageEvent e) throws Exception {

@@ -1,9 +1,9 @@
 package com.netiq.websockify;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
-import org.jboss.netty.channel.Channel;
+import org.jboss.netty.channel.ChannelEvent;
+import org.jboss.netty.channel.MessageEvent;
 
 public class StaticTargetResolver implements IProxyTargetResolver {
 	
@@ -16,7 +16,7 @@ public class StaticTargetResolver implements IProxyTargetResolver {
         this.targetPort = targetPort;
     }
 
-	public InetSocketAddress resolveTarget(Channel channel) {
+	public InetSocketAddress resolveTarget(MessageEvent messageEvent) {
 		return new InetSocketAddress ( targetHost, targetPort );
 	}
 
